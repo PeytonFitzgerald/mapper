@@ -1,7 +1,7 @@
-import { createTRPCRouter } from '~/server/api/trpc'
-import { exampleRouter } from '~/server/api/routers/example'
+import { createTRPCRouter } from '@/server/api/trpc'
+import { exampleRouter } from '@/server/api/routers/example'
 import { managementRouter } from './routers/management/geoData'
-import { geoRouter } from './routers/geographic/geoRouter'
+import { stateRouter } from './routers/stateRouter'
 
 /**
  * This is the primary router for your server.
@@ -11,7 +11,7 @@ import { geoRouter } from './routers/geographic/geoRouter'
 export const appRouter = createTRPCRouter({
   example: exampleRouter,
   management: managementRouter,
-  geographic: geoRouter,
+  stateRouter: stateRouter,
 })
 
 // export type definition of API

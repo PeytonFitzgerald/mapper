@@ -1,6 +1,6 @@
 import { prisma } from '../src/server/db'
 import { upsertEconData } from './seeding/bls-parser'
-import stateJsonData from '~/server/temp_data/us_states_geo.json'
+import stateJsonData from '@/server/temp_data/us_states_geo.json'
 async function main() {
   const id = 'cl9ebqhxk00003b600tymydho'
   await prisma.example.upsert({

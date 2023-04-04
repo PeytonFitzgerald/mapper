@@ -23,7 +23,7 @@ export const Map = ({ layers, darkStyle, lightStyle }: MapProps) => {
   const { theme } = useTheme()
   return (
     <>
-      <div className="border-3 h-[90%] w-[100%] border-black">
+      <div className="border-3 h-[100%] w-[100%] border-black">
         <DeckGL
           initialViewState={INITIAL_VIEW_STATE}
           controller={true}

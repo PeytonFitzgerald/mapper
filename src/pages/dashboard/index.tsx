@@ -5,7 +5,7 @@ import { signIn, signOut, useSession } from 'next-auth/react'
 import dynamic from 'next/dynamic'
 
 const DashboardScreen = dynamic(
-  () => import('~/components/screens/dashboard/Dashboard'),
+  () => import('@/components/screens/dashboard/Dashboard'),
   {
     ssr: false,
   }
