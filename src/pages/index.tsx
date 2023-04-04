@@ -7,7 +7,10 @@ import { api } from '~/utils/api'
 
 const Home: NextPage = () => {
   const hello = api.example.hello.useQuery({ text: 'from tRPC' })
-
+  const { data: data, isLoading } = api.management.insertStates.useQuery()
+  if (!isLoading) {
+    console.log('Done..')
+  }
   return (
     <>
       <Head>

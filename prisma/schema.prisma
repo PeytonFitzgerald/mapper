@@ -64,3 +64,15 @@ model VerificationToken {
 
     @@unique([identifier, token])
 }
+
+// Geographic Data
+
+model USState {
+    id         Int                     @id @default(autoincrement())
+    name       String                  @unique
+    properties Json
+    geometry   Unsupported("geometry")
+
+    // the index for that column
+    @@index([geometry], name: "USState_idx", type: Gist)
+}
