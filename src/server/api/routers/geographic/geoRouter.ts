@@ -1,7 +1,11 @@
 import { z } from 'zod'
 import { createTRPCRouter, protectedProcedure } from '~/server/api/trpc'
 import { prisma } from '~/server/db'
-import { StateResponseSchema, FeatureSchema } from '~/types/GeoJson'
+import {
+  StateResponseSchema,
+  FeatureSchema,
+  FeatureCollectionSchema,
+} from '~/types/GeoJson'
 
 export const geoRouter = createTRPCRouter({
   getStates: protectedProcedure.query(async ({ ctx }) => {
@@ -21,9 +25,11 @@ export const geoRouter = createTRPCRouter({
       FeatureSchema.parse(newResponse)
       return newResponse
     })
-    return {
+    const collection = {
       type: 'FeatureCollection',
       features: formattedResults,
     }
+    const validatedCollection = FeatureCollectionSchema.parse(collection)
+    return validatedCollection
   }),
 })

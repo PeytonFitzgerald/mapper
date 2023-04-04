@@ -50,7 +50,7 @@ const DashboardScreen = () => {
         isLoading={isLoading}
         data={data}
         EmptyComponent={<EmptyStateDashboard />}
-        NonEmptyComponent={<Dashboard data={data ?? []} />}
+        NonEmptyComponent={<Dashboard data={data as FeatureCollectionType} />}
       />
     </div>
   )
