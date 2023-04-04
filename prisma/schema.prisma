@@ -96,7 +96,9 @@ model USEcon {
     implicit_regional_price_deflator     Float?
     employment                           Float?
     year                                 Int
-    name                                 String  @unique
+    fibs                                 String
+    name                                 String
+    year_name                            String  @unique
     state                                USState @relation(fields: [uSStateId], references: [id])
     uSStateId                            Int
 }

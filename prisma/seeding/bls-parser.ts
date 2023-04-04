@@ -6,58 +6,107 @@ import { prisma } from '../../src/server/db'
 
 const USEconDataSchema = z.object({
   year: z.number(),
-  geo_name: z.string(),
-  geo_fips: z.number(),
-  real_gdp: z.number().nullable(),
-  real_personal: z.number().nullable(),
-  real_pce: z.number().nullable(),
-  current_gdp: z.number().nullable(),
-  personal_income: z.number().nullable(),
-  disposable_income: z.number().nullable(),
-  personal_consumption: z.number().nullable(),
-  real_per_capita_personal_income: z.number().nullable(),
-  real_per_capita_pce: z.number().nullable(),
-  current_per_capita_personal_income: z.number().nullable(),
-  current_per_capita_disposable_income: z.number().nullable(),
-  rpp: z.number().nullable(),
+  name: z.string(),
+  fibs: z.string(),
+  year_name: z.string(),
+  real_gdp: z.number().nullable(), // millions of chained 2012 dollars
+  real_personal: z.number().nullable(), // millions of constant 2012 dollars
+  real_pce: z.number().nullable(), // millions of 2012 dollars
+  current_gdp: z.number().nullable(), // millions of dollars
+  personal_income: z.number().nullable(), // millions of dollars
+  disposable_income: z.number().nullable(), // millions of dollars
+  personal_consumption: z.number().nullable(), // millions of dollars
+  real_per_capita_personal_income: z.number().nullable(), // constant 2012 dollars
+  real_per_capita_pce: z.number().nullable(), // constant 2012 dollars
+  current_per_capita_personal_income: z.number().nullable(), // current dollars
+  current_per_capita_disposable_income: z.number().nullable(), // current dollars
+  rpp: z.number().nullable(), // current dollars
   implicit_regional_price_deflator: z.number().nullable(),
-  employment: z.number().nullable(),
-  uSStateId: z.number().nullable(),
+  employment: z.number().nullable(), // number of jobs
 })
 
 type USEconData = z.infer<typeof USEconDataSchema>
 
+const createStateData = (
+  year: number,
+  geo_name: string,
+  geo_fips: string
+): USEconData => ({
+  year,
+  fibs: geo_fips,
+  name: geo_name,
+  year_name: `${year}-${geo_name}`,
+  real_gdp: null,
+  real_personal: null,
+  real_pce: null,
+  current_gdp: null,
+  personal_income: null,
+  disposable_income: null,
+  personal_consumption: null,
+  real_per_capita_personal_income: null,
+  real_per_capita_pce: null,
+  current_per_capita_personal_income: null,
+  current_per_capita_disposable_income: null,
+  rpp: null,
+  implicit_regional_price_deflator: null,
+  employment: null,
+})
+
 export const upsertEconData = async () => {
   const filepath = path.join(__dirname, 'us-econ.csv')
   const rows = await parseCSV(filepath)
-  console.log(rows)
   const promiseArray = []
-  //   for (const row of rows) {
-  //     promiseArray.push(prisma.uSEcon.upsert({
-  //         where: {
-  //             name: row.
-  //         }
-
-  //     }))
-  //   }
+  for (const row of rows) {
+    if (row.name !== 'United States') {
+      promiseArray.push(
+        prisma.uSEcon.upsert({
+          where: {
+            year_name: row.year_name,
+          },
+          create: {
+            ...row,
+            state: {
+              connect: {
+                name: row.name,
+              },
+            },
+          },
+          update: {
+            ...row,
+            state: {
+              connect: {
+                name: row.name,
+              },
+            },
+          },
+        })
+      )
+    }
+  }
+  Promise.all(promiseArray).then((result) => {
+    console.log('finished')
+  })
 }
 
-const processRow = (row: any, stateDataList: Partial<USEconData>[]) => {
-  const code = parseInt(row[2])
-
-  for (let i = 4; i < row.length; i++) {
+const processRow = (
+  row: any,
+  stateDataList: Partial<USEconData>[],
+  stateDataMap: Map<string, Partial<USEconData>[]>
+) => {
+  const code = parseInt(row['LineCode'])
+  const geo_name = row['GeoName']
+  const geo_fips = row['GeoFips']
+  for (let i = 4; i < Object.values(row).length; i++) {
     const year = 1997 + (i - 4)
-    const value = parseFloat(row[i])
-
+    const value = parseFloat(Object.values(row)[i] as string)
     if (isNaN(value)) continue
 
     let stateData = stateDataList.find((data) => data.year === year)
 
     if (!stateData) {
-      stateData = { year }
+      stateData = createStateData(year, geo_name, geo_fips)
       stateDataList.push(stateData)
     }
-    console.log(stateData)
     if (stateData) {
       switch (code) {
         case 1:
@@ -104,6 +153,8 @@ const processRow = (row: any, stateDataList: Partial<USEconData>[]) => {
           break
       }
     }
+    const stateAbbreviation = row['GeoFips']
+    stateDataMap.set(stateAbbreviation, stateDataList)
   }
 }
 
@@ -116,26 +167,28 @@ const parseCSV = async (filePath: string): Promise<USEconData[]> => {
       .on('data', (row: any) => {
         const stateCode = row['GeoFips']
         const stateName = row['GeoName']
+        const lineCode = row['LineCode']
+
+        if (!lineCode || !stateCode || !stateName) return // Skip the row if LineCode is empty
+
         if (!stateDataMap.has(stateCode)) {
           stateDataMap.set(stateCode, [])
         }
         const stateDataList = stateDataMap.get(stateCode)
-        cons
         if (stateDataList) {
-          processRow(row, stateDataList)
+          processRow(row, stateDataList, stateDataMap)
         }
       })
       .on('end', () => {
+        console.log(stateDataMap)
         stateDataMap.forEach((stateDataList, stateCode) => {
-          stateDataList.forEach((stateData) => {
-            const validatedRow = USEconDataSchema.safeParse({
-              ...stateData,
-              state: stateCode,
-            })
-            if (validatedRow.success) {
-              data.push(validatedRow.data)
+          console.log(parseInt(stateCode))
+          stateDataList.forEach((stateYearData) => {
+            const validatedYearData = USEconDataSchema.safeParse(stateYearData)
+            if (validatedYearData.success) {
+              data.push(validatedYearData.data)
             } else {
-              console.log('Error parsing row: ', validatedRow.error)
+              console.log('Error parsing row: ', validatedYearData.error)
             }
           })
         })
