@@ -1,0 +1,9 @@
+/*
+    Returns an array of three strings, representing an RGB.
+*/
+export const getRandomRGB = () => {
+  const r = Math.floor(Math.random() * 256)
+  const g = Math.floor(Math.random() * 256)
+  const b = Math.floor(Math.random() * 256)
+  return [r, g, b]
+}

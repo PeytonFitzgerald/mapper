@@ -72,7 +72,31 @@ model USState {
     name       String                  @unique
     properties Json
     geometry   Unsupported("geometry")
+    USEcon     USEcon[]
 
     // the index for that column
     @@index([geometry], name: "USState_idx", type: Gist)
+}
+
+// Economic Data
+model USEcon {
+    id                                   String  @id @default(cuid())
+    real_gdp                             Float?
+    real_personal                        Float?
+    real_pce                             Float?
+    current_gdp                          Float?
+    personal_income                      Float?
+    disposable_income                    Float?
+    personal_consumption                 Float?
+    real_per_capita_personal_income      Float?
+    real_per_capita_pce                  Float?
+    current_per_capita_personal_income   Float?
+    current_per_capita_disposable_income Float?
+    rpp                                  Float?
+    implicit_regional_price_deflator     Float?
+    employment                           Float?
+    year                                 Int
+    name                                 String  @unique
+    state                                USState @relation(fields: [uSStateId], references: [id])
+    uSStateId                            Int
 }

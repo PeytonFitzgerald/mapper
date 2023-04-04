@@ -41,3 +41,4 @@ export const FeatureCollectionSchema = z.object({
 })
 
 export type FeatureCollectionType = z.infer<typeof FeatureCollectionSchema>
+export type FeatureType = z.infer<typeof FeatureSchema>
