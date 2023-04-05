@@ -6,6 +6,153 @@ import {
   FeatureSchema,
   FeatureCollectionSchema,
 } from '@/types/GeoJson'
+import { PrismaClient } from '@prisma/client'
+import { usEconSelector } from '@/types/Econ'
+
+/**
+ * Returns the requested econ data for a given year for all states.
+ *
+ * @param {string} selectField: The column of the USEcon table to be returned
+ * @param {number} year - The end value.
+ * @param {PrismaClient} prismaSession - The authorized prisma session
+ */
+const getEconDataByYear = (
+  selectField: string,
+  year: number,
+  prismaSession: PrismaClient
+) => {
+  return prismaSession.uSEcon.findMany({
+    select: {
+      [selectField]: true,
+      name: true,
+      fibs: true,
+    },
+    where: {
+      year: {
+        equals: year,
+      },
+    },
+  })
+}
+
+/**
+ * Returns the requested econ data for all years for all states.
+ *
+ * @param {string} selectField: The column of the USEcon table to be returned
+ * @param {PrismaClient} prismaSession - The authorized prisma session
+ */
+const getEconDataAllYears = (
+  selectField: string,
+  prismaSession: PrismaClient
+) => {
+  return prismaSession.uSEcon.findMany({
+    select: {
+      [selectField]: true,
+      name: true,
+      fibs: true,
+    },
+  })
+}
+
+/**
+ * Returns the requested econ data for years within a specified range for all states.
+ *
+ * @param {string} selectField: The column of the USEcon table to be returned
+ * @param {number} start_year - The starting year for the range
+ * @param {number} end_year - The ending year for the range
+ * @param {PrismaClient} prismaSession - The authorized prisma session
+ */
+const getEconDataWithinRange = (
+  selectField: string,
+  start_year: number,
+  end_year: number,
+  prismaSession: PrismaClient
+) => {
+  return prismaSession.uSEcon.findMany({
+    select: {
+      [selectField]: true,
+      name: true,
+      fibs: true,
+    },
+    where: {
+      OR: [
+        {
+          year: {
+            gt: start_year,
+          },
+        },
+        {
+          year: {
+            lt: end_year,
+          },
+        },
+      ],
+    },
+  })
+}
+
+/**
+ * Returns the requested econ data for a given year for a specific state
+ *
+ * @param {string} state: The name of the state
+ * @param {string} selectField: The column of the USEcon table to be returned
+ * @param {number} year - The end value.
+ * @param {PrismaClient} prismaSession - The authorized prisma session
+ */
+const getStateSpecificEconDataByYear = (
+  state: string,
+  selectField: string,
+  year: number,
+  prismaSession: PrismaClient
+) => {
+  return prismaSession.uSEcon.findMany({
+    select: {
+      [selectField]: true,
+      name: true,
+      fibs: true,
+    },
+    where: {
+      AND: [
+        {
+          year: {
+            equals: year,
+          },
+        },
+        {
+          name: state,
+        },
+      ],
+    },
+  })
+}
+
+/**
+ * Returns all economic data for a given year for a specific state
+ *
+ * @param {string} state: The name of the state
+ * @param {number} year - The end value.
+ * @param {PrismaClient} prismaSession - The authorized prisma session
+ */
+const getAllStateEconDataByYear = (
+  state: string,
+  year: number,
+  prismaSession: PrismaClient
+) => {
+  return prismaSession.uSEcon.findMany({
+    where: {
+      AND: [
+        {
+          year: {
+            equals: year,
+          },
+        },
+        {
+          name: state,
+        },
+      ],
+    },
+  })
+}
 
 export const stateRouter = createTRPCRouter({
   /* Grabs all rows from USState table */
@@ -14,7 +161,7 @@ export const stateRouter = createTRPCRouter({
       SELECT id, name, properties, ST_AsGeoJSON(geometry) AS geometry
       FROM "USState";
     `
-    // validate response
+    // Prisma can't handle the geometry type, so have to use zod for parsing here
     const validatedResult = StateResponseSchema.parse(result)
     // transform geometric string
     const formattedResults = validatedResult.map((state) => {
@@ -57,255 +204,36 @@ export const stateRouter = createTRPCRouter({
         },
       })
     }),
-  getRealGDP: protectedProcedure
-    .input(z.object({ year: z.number() }))
-    .query(async ({ ctx, input }) => {
-      return ctx.prisma.uSEcon.findMany({
-        select: {
-          real_gdp: true,
-          name: true,
-          fibs: true,
-        },
-        where: {
-          year: {
-            equals: input.year,
-          },
-        },
+  /*
+   * Grabs a specific USEcon table column value for all states for a given year.
+   */
+  getSpecificEconDataByYear: protectedProcedure
+    .input(
+      z.object({
+        year: z.number(),
+        type: usEconSelector,
       })
-    }),
-  getRealGDPWithinRange: protectedProcedure
-    .input(z.object({ start_year: z.number(), end_year: z.number() }))
+    )
     .query(async ({ ctx, input }) => {
-      return ctx.prisma.uSEcon.findMany({
-        select: {
-          real_gdp: true,
-          name: true,
-          fibs: true,
-        },
-        where: {
-          OR: [
-            {
-              year: {
-                gt: input.start_year,
-              },
-            },
-            {
-              year: {
-                lt: input.end_year,
-              },
-            },
-          ],
-        },
-      })
+      return getEconDataByYear(input.type, input.year, ctx.prisma)
     }),
-  getRealPersonal: protectedProcedure
-    .input(z.object({ year: z.number() }))
+  /*
+   * Grabs a specific USEcon table column value for all states for all years within the specified range
+   */
+  getSpecificEconDataWithinRange: protectedProcedure
+    .input(
+      z.object({
+        start_year: z.number(),
+        end_year: z.number(),
+        type: usEconSelector,
+      })
+    )
     .query(async ({ ctx, input }) => {
-      return ctx.prisma.uSEcon.findMany({
-        select: {
-          real_personal: true,
-          name: true,
-          fibs: true,
-        },
-        where: {
-          year: {
-            equals: input.year,
-          },
-        },
-      })
+      return getEconDataWithinRange(
+        input.type,
+        input.start_year,
+        input.end_year,
+        ctx.prisma
+      )
     }),
-  getRealPCE: protectedProcedure
-    .input(z.object({ year: z.number() }))
-    .query(async ({ ctx, input }) => {
-      return ctx.prisma.uSEcon.findMany({
-        select: {
-          real_pce: true,
-          name: true,
-          fibs: true,
-        },
-        where: {
-          year: {
-            equals: input.year,
-          },
-        },
-      })
-    }),
-  getCurrentGDP: protectedProcedure
-    .input(z.object({ year: z.number() }))
-    .query(async ({ ctx, input }) => {
-      return ctx.prisma.uSEcon.findMany({
-        select: {
-          current_gdp: true,
-          name: true,
-          fibs: true,
-        },
-        where: {
-          year: {
-            equals: input.year,
-          },
-        },
-      })
-    }),
-  getPersonalIncome: protectedProcedure
-    .input(z.object({ year: z.number() }))
-    .query(async ({ ctx, input }) => {
-      return ctx.prisma.uSEcon.findMany({
-        select: {
-          personal_income: true,
-          name: true,
-          fibs: true,
-        },
-        where: {
-          year: {
-            equals: input.year,
-          },
-        },
-      })
-    }),
-  getDisposableIncome: protectedProcedure
-    .input(z.object({ year: z.number() }))
-    .query(async ({ ctx, input }) => {
-      return ctx.prisma.uSEcon.findMany({
-        select: {
-          disposable_income: true,
-          name: true,
-          fibs: true,
-        },
-        where: {
-          year: {
-            equals: input.year,
-          },
-        },
-      })
-    }),
-  getPersonalConsumption: protectedProcedure
-    .input(z.object({ year: z.number() }))
-    .query(async ({ ctx, input }) => {
-      return ctx.prisma.uSEcon.findMany({
-        select: {
-          personal_consumption: true,
-          name: true,
-          fibs: true,
-        },
-        where: {
-          year: {
-            equals: input.year,
-          },
-        },
-      })
-    }),
-  getRealPerCapitaPersonalIncome: protectedProcedure
-    .input(z.object({ year: z.number() }))
-    .query(async ({ ctx, input }) => {
-      return ctx.prisma.uSEcon.findMany({
-        select: {
-          real_per_capita_personal_income: true,
-          name: true,
-          fibs: true,
-        },
-        where: {
-          year: {
-            equals: input.year,
-          },
-        },
-      })
-    }),
-  getRealPerCapitaPCE: protectedProcedure
-    .input(z.object({ year: z.number() }))
-    .query(async ({ ctx, input }) => {
-      return ctx.prisma.uSEcon.findMany({
-        select: {
-          real_per_capita_pce: true,
-          name: true,
-          fibs: true,
-        },
-        where: {
-          year: {
-            equals: input.year,
-          },
-        },
-      })
-    }),
-  getCurrentPerCapitaPersonalIncome: protectedProcedure
-    .input(z.object({ year: z.number() }))
-    .query(async ({ ctx, input }) => {
-      return ctx.prisma.uSEcon.findMany({
-        select: {
-          current_per_capita_personal_income: true,
-          name: true,
-          fibs: true,
-        },
-        where: {
-          year: {
-            equals: input.year,
-          },
-        },
-      })
-    }),
-  getCurrentPerCapitaDisposableIncome: protectedProcedure
-    .input(z.object({ year: z.number() }))
-    .query(async ({ ctx, input }) => {
-      return ctx.prisma.uSEcon.findMany({
-        select: {
-          current_per_capita_disposable_income: true,
-          name: true,
-          fibs: true,
-        },
-        where: {
-          year: {
-            equals: input.year,
-          },
-        },
-      })
-    }),
-  getRPP: protectedProcedure
-    .input(z.object({ year: z.number() }))
-    .query(async ({ ctx, input }) => {
-      return ctx.prisma.uSEcon.findMany({
-        select: {
-          rpp: true,
-          name: true,
-          fibs: true,
-        },
-        where: {
-          year: {
-            equals: input.year,
-          },
-        },
-      })
-    }),
-  getPriceDeflator: protectedProcedure
-    .input(z.object({ year: z.number() }))
-    .query(async ({ ctx, input }) => {
-      return ctx.prisma.uSEcon.findMany({
-        select: {
-          implicit_regional_price_deflator: true,
-          name: true,
-          fibs: true,
-        },
-        where: {
-          year: {
-            equals: input.year,
-          },
-        },
-      })
-    }),
-  getEmployment: protectedProcedure
-    .input(z.object({ year: z.number() }))
-    .query(async ({ ctx, input }) => {
-      return ctx.prisma.uSEcon.findMany({
-        select: {
-          employment: true,
-          name: true,
-          fibs: true,
-        },
-        where: {
-          year: {
-            equals: input.year,
-          },
-        },
-      })
-    }),
-
-  /* Grabs all rows from USEcon table for a specific USState relation */
 })

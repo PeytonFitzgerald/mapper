@@ -1,6 +1,6 @@
 import React from 'react'
 import StaticMap from 'react-map-gl'
-import DeckGL from 'deck.gl/typed'
+import DeckGL, { GeoJsonLayer } from 'deck.gl/typed'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useTheme } from 'next-themes'
@@ -14,7 +14,8 @@ const INITIAL_VIEW_STATE = {
 }
 
 interface MapProps {
-  layers: any
+  layers: GeoJsonLayer[]
+  key: string
   darkStyle: 'POSTIRON' | 'DARK_MATTER' | 'VOYAGER'
   lightStyle: 'POSTIRON' | 'DARK_MATTER' | 'VOYAGER'
 }

@@ -4,6 +4,8 @@ import { lerp } from '@/utils/calculations'
 import { FeatureCollectionType } from '@/types/GeoJson'
 import { GeoJsonLayer } from 'deck.gl/typed'
 import { Feature } from 'geojson'
+import { USEcon } from '@prisma/client'
+import { USEconSelector } from '@/types/Econ'
 type CreateEconGeoJsonLayerProps<T> = {
   data: FeatureCollectionType
   stateDataMap: Map<string, EconData<T>>
@@ -49,9 +51,9 @@ export const createEconGeoJsonLayer = <T extends Record<string, number>>({
 export const createColorMap = (features: FeatureType[]) => {
   const colorMap = new Map()
   features.forEach((feature) => {
-    const geoId = feature.properties.GEO_ID
-    if (!colorMap.has(geoId)) {
-      colorMap.set(geoId, getRandomRGB())
+    const state = feature.properties.NAME
+    if (!colorMap.has(state)) {
+      colorMap.set(state, [0, 0, 0, 0])
     }
   })
   return colorMap
@@ -60,12 +62,11 @@ export const createColorMap = (features: FeatureType[]) => {
 /* 
  TODO: This type checking feels...bad. Should revisit, still kind of uncomfortable with generics.
 */
-export const createColorScale = <T extends Record<string, number>>(
-  data: EconData<T>[],
-  key: keyof T
-) => {
+export const createColorScale = (data: USEcon[], key: USEconSelector) => {
   const minVal = Math.min(...data.map((d) => d[key]))
   const maxVal = Math.max(...data.map((d) => d[key]))
+  console.log('min', minVal)
+  console.log('max', maxVal)
 
   return (value: number): [number, number, number, number] => {
     const t = (value - minVal) / (maxVal - minVal)

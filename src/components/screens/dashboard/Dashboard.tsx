@@ -1,6 +1,13 @@
-import { useState, useMemo } from 'react'
+import React, {
+  useState,
+  useMemo,
+  useContext,
+  createContext,
+  useReducer,
+  useEffect,
+} from 'react'
 import { GeoJsonLayer } from 'deck.gl/typed'
-import { Map } from '@/components/common/charts/Map'
+import { Map as MapComponent } from '@/components/common/charts/Map'
 import * as data from '@/server/temp_data/data.json'
 import { api } from '@/utils/api'
 import { EmptyStateWrapper } from '@/components/common/EmptyStateWrapper'
@@ -10,44 +17,88 @@ import { EconData } from './calculations'
 import { createColorMap } from './calculations'
 import { useToast } from '@/hooks/use-toast'
 import { Feature } from 'maplibre-gl'
+import { USEconSelector } from '@/types/Econ'
+import { createColorScale } from './calculations'
+interface StateType {
+  year: number
+  econ_indicator: USEconSelector
+}
+type ActionType =
+  | { type: 'SET_YEAR'; year: number }
+  | { type: 'SET_INDICATOR'; econ_indicator: USEconSelector }
+const initialState: StateType = {
+  year: 2022,
+  econ_indicator: 'real_gdp',
+}
+const reducer = (state: StateType, action: ActionType) => {
+  switch (action.type) {
+    case 'SET_YEAR':
+      return { ...state, year: action.year }
+    case 'SET_INDICATOR':
+      return { ...state, econ_indicator: action.econ_indicator }
+    default:
+      return state
+  }
+}
+export const EconContext = createContext<StateType | null>(null)
+export const EconDispatchContext =
+  React.createContext<React.Dispatch<ActionType> | null>(null)
+/* Wrapper for first geographic data load */
+const DashboardScreen = () => {
+  const [state, dispatch] = useReducer(reducer, initialState)
+  const { data, isLoading } = api.stateRouter.getStateGeoData.useQuery()
+  return (
+    <div>
+      {/*<MainHeading title="Mapper" />*/}
+      <EconContext.Provider value={state}>
+        <EconDispatchContext.Provider value={dispatch}>
+          <EmptyStateWrapper
+            isLoading={isLoading}
+            data={data}
+            EmptyComponent={<EmptyStateDashboard />}
+            NonEmptyComponent={
+              <Dashboard geoData={data as FeatureCollectionType} />
+            }
+          />
+        </EconDispatchContext.Provider>
+      </EconContext.Provider>
+    </div>
+  )
+}
+
 // Main dashboard hub
-const Dashboard = ({ data }: { data: FeatureCollectionType }) => {
-  const [currentYear, setCurrentYear] = useState(2018)
+const Dashboard = ({ geoData }: { geoData: FeatureCollectionType }) => {
+  const data = geoData
   const [hoveredFeature, setHoveredFeature] = useState(null)
   const [optionsVisible, toggleOptionsVisible] = useState(false)
-  const [currentEconKey, setCurrentEconKey] = useState('real_gdp')
-  const [activeColorScale, setActiveColorScale] = useState<
-    (value: number) => [number, number, number, number] | null
-  >(() => null)
-  // const [stateDataMap, setStateDataMap] = useState<
-  //   Map<string, EconData<Record<string, number | null>>>
-  // >(new (Map as MapConstructor)())
+  const [stateColorMap, setStateColorMap] = useState(
+    createColorMap(data.features)
+  )
+  const econContext = useContext(EconContext)
+  const econContextDispatch = useContext(EconDispatchContext)
+  const { data: econData, isLoading: econDataIsLoading } =
+    api.stateRouter.getAllEconDataByYear.useQuery({
+      year: econContext?.year ?? 2021,
+    })
 
-  const { data: econData, isLoading } =
-    api.stateRouter.getAllEconDataByYear.useQuery({ year: currentYear })
+  useEffect(() => {
+    if (econData && econContext) {
+      const colorScale = createColorScale(econData, econContext.econ_indicator)
+      const updatedColorMap = new Map(stateColorMap)
+      console.log(colorScale)
+      geoData.features.forEach((feature) => {
+        const state = feature.properties.NAME
+        const econDataItem = econData.find((item) => item.name === state)
+        if (econDataItem) {
+          const value = econDataItem[econContext.econ_indicator] ?? 0
+          updatedColorMap.set(state, colorScale(value))
+        }
+      })
+      setStateColorMap(updatedColorMap)
+      // stuff here...
+    }
+  }, [econData, econContext, econDataIsLoading])
 
-  // useMemo(() => {
-  //   // Fetch the state data for the active economic key and create a color scale
-  //   api.stateRouter.getEconData(currentEconKey).then((econData) => {
-  //     const newStateDataMap = createStateDataMap(econData)
-  //     const newColorScale = createColorScale(econData, currentEconKey)
-
-  //     setStateDataMap(newStateDataMap)
-  //     setActiveColorScale(() => newColorScale)
-  //   })
-  // }, [currentEconKey])
-
-  /*
-  const { toast } = useToast()
-  // State Color Map Generation
-  const stateColorMap = createColorMap(data.features)
-  // Hover State and layer
-  const [currentEconKey, setCurrentEconKey] = useState('real_gdp')
-
-  */
-  const stateColorMap = econData
-    ? createColorMap(data.features)
-    : createColorMap(data.features)
   const hoverLayer = new GeoJsonLayer({
     id: 'hover-layer',
     data: hoveredFeature ? [hoveredFeature] : [],
@@ -56,40 +107,45 @@ const Dashboard = ({ data }: { data: FeatureCollectionType }) => {
     filled: true,
     lineWidthScale: 20,
     lineWidthMinPixels: 2,
-    getFillColor: () => [255, 255, 255, 255], // Set fill color to white
+    getFillColor: () => [0, 0, 0, 0], // Set fill color to white
     getLineColor: [0, 0, 0, 255],
     getRadius: 100,
     getLineWidth: 1,
     getElevation: 30,
   })
-  // Main Geo Layer
-  const layers = [
-    new GeoJsonLayer({
-      id: 'geojson-layer',
-      data,
-      pickable: true,
-      stroked: false,
-      filled: true,
-      extruded: true,
-      lineWidthScale: 20,
-      lineWidthMinPixels: 2,
-      getFillColor: (feature: any) => {
-        const geoId = feature.properties.GEO_ID
-        return stateColorMap.get(geoId)
-      },
-      getLineColor: [0, 0, 0, 255],
-      getRadius: 100,
-      getLineWidth: 1,
-      getElevation: 30,
-      onClick: (info, event) => {
-        console.log('Feature clicked:', info.object)
-      },
-      onHover: (info) => {
-        setHoveredFeature(info.object)
-      },
-    }),
-    hoverLayer,
-  ]
+  const mapKey = useMemo(() => {
+    return Math.random().toString(36).substring(2)
+  }, [stateColorMap])
+
+  const layers = useMemo(() => {
+    return [
+      new GeoJsonLayer({
+        id: 'geojson-layer',
+        data,
+        pickable: true,
+        stroked: true,
+        filled: true,
+        extruded: true,
+        lineWidthScale: 20,
+        lineWidthMinPixels: 2,
+        getFillColor: (feature: any) => {
+          const state = feature.properties.NAME
+          return stateColorMap.get(state)
+        },
+        getLineColor: [0, 0, 0, 255],
+        getRadius: 100,
+        getLineWidth: 5,
+        getElevation: 30,
+        onClick: (info, event) => {
+          console.log('Feature clicked:', info.object)
+        },
+        onHover: (info) => {
+          setHoveredFeature(info.object)
+        },
+      }),
+      hoverLayer,
+    ]
+  }, [stateColorMap, hoverLayer, econData])
 
   return (
     <div className="h-screen w-screen">
@@ -107,22 +163,11 @@ const Dashboard = ({ data }: { data: FeatureCollectionType }) => {
           {/* <button onClick={toggleLayerVisibility}>Toggle Fill Colors Layer</button> */}
         </div>
       ) : null}
-      <Map layers={layers} darkStyle="DARK_MATTER" lightStyle="POSTIRON" />
-    </div>
-  )
-}
-
-/* Wrapper for first geographic data load */
-const DashboardScreen = () => {
-  const { data, isLoading } = api.stateRouter.getStateGeoData.useQuery()
-  return (
-    <div>
-      {/*<MainHeading title="Mapper" />*/}
-      <EmptyStateWrapper
-        isLoading={isLoading}
-        data={data}
-        EmptyComponent={<EmptyStateDashboard />}
-        NonEmptyComponent={<Dashboard data={data as FeatureCollectionType} />}
+      <MapComponent
+        key={mapKey}
+        layers={layers}
+        darkStyle="DARK_MATTER"
+        lightStyle="POSTIRON"
       />
     </div>
   )
