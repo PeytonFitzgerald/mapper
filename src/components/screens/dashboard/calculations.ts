@@ -63,8 +63,8 @@ export const createColorMap = (features: FeatureType[]) => {
  TODO: This type checking feels...bad. Should revisit, still kind of uncomfortable with generics.
 */
 export const createColorScale = (data: USEcon[], key: USEconSelector) => {
-  const minVal = Math.min(...data.map((d) => d[key]))
-  const maxVal = Math.max(...data.map((d) => d[key]))
+  const minVal = Math.min(...data.map((d) => d[key] ?? 0))
+  const maxVal = Math.max(...data.map((d) => d[key] ?? 0))
   console.log('min', minVal)
   console.log('max', maxVal)
 
