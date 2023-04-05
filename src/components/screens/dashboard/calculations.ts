@@ -1,6 +1,50 @@
 import { FeatureType } from '@/types/GeoJson'
 import { getRandomRGB } from '@/utils/colors'
 import { lerp } from '@/utils/calculations'
+import { FeatureCollectionType } from '@/types/GeoJson'
+import { GeoJsonLayer } from 'deck.gl/typed'
+import { Feature } from 'geojson'
+type CreateEconGeoJsonLayerProps<T> = {
+  data: FeatureCollectionType
+  stateDataMap: Map<string, EconData<T>>
+  colorScale: (value: number) => [number, number, number, number]
+  onClick?: (info: any, event: any) => void
+  onHover?: (info: any) => void
+}
+
+export const createEconGeoJsonLayer = <T extends Record<string, number>>({
+  data,
+  stateDataMap,
+  colorScale,
+  onClick,
+  onHover,
+}: CreateEconGeoJsonLayerProps<T>) => {
+  return new GeoJsonLayer({
+    id: 'econ-geojson-layer',
+    data,
+    pickable: true,
+    stroked: false,
+    filled: true,
+    extruded: true,
+    lineWidthScale: 20,
+    lineWidthMinPixels: 2,
+    getFillColor: (feature: Feature) => {
+      const geoId = feature!.properties!.GEO_ID
+      const econData = stateDataMap.get(geoId)
+      if (econData) {
+        const value = econData[1] ?? 0
+        return colorScale(value)
+      }
+      return [0, 0, 0, 255] // Default color if no data is available for the state
+    },
+    getLineColor: [0, 0, 0, 255],
+    getRadius: 100,
+    getLineWidth: 1,
+    getElevation: 30,
+    onClick,
+    onHover,
+  })
+}
 
 export const createColorMap = (features: FeatureType[]) => {
   const colorMap = new Map()

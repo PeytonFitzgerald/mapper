@@ -96,9 +96,10 @@ const processRow = (
   const code = parseInt(row['LineCode'])
   const geo_name = row['GeoName']
   const geo_fips = row['GeoFips']
-  for (let i = 4; i < Object.values(row).length; i++) {
-    const year = 1997 + (i - 4)
-    const value = parseFloat(Object.values(row)[i] as string)
+  const values = Object.values(row)
+  console.log(row)
+  for (let year = 1998; year <= 2022; year++) {
+    const value = parseFloat(row[year])
     if (isNaN(value)) continue
 
     let stateData = stateDataList.find((data) => data.year === year)
@@ -180,9 +181,7 @@ const parseCSV = async (filePath: string): Promise<USEconData[]> => {
         }
       })
       .on('end', () => {
-        console.log(stateDataMap)
         stateDataMap.forEach((stateDataList, stateCode) => {
-          console.log(parseInt(stateCode))
           stateDataList.forEach((stateYearData) => {
             const validatedYearData = USEconDataSchema.safeParse(stateYearData)
             if (validatedYearData.success) {

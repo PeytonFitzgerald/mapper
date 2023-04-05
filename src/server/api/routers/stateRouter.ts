@@ -33,6 +33,17 @@ export const stateRouter = createTRPCRouter({
     const validatedCollection = FeatureCollectionSchema.parse(collection)
     return validatedCollection
   }),
+  getAllEconDataByYear: protectedProcedure
+    .input(z.object({ year: z.number() }))
+    .query(async ({ ctx, input }) => {
+      return ctx.prisma.uSEcon.findMany({
+        where: {
+          year: {
+            equals: input.year,
+          },
+        },
+      })
+    }),
   /* Grabs all rows from USEcon table for a specific USState relation */
   getSpecificStateEconData: protectedProcedure
     .input(z.object({ state: z.string() }))
@@ -59,6 +70,31 @@ export const stateRouter = createTRPCRouter({
           year: {
             equals: input.year,
           },
+        },
+      })
+    }),
+  getRealGDPWithinRange: protectedProcedure
+    .input(z.object({ start_year: z.number(), end_year: z.number() }))
+    .query(async ({ ctx, input }) => {
+      return ctx.prisma.uSEcon.findMany({
+        select: {
+          real_gdp: true,
+          name: true,
+          fibs: true,
+        },
+        where: {
+          OR: [
+            {
+              year: {
+                gt: input.start_year,
+              },
+            },
+            {
+              year: {
+                lt: input.end_year,
+              },
+            },
+          ],
         },
       })
     }),
