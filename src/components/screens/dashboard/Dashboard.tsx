@@ -17,12 +17,9 @@ import { createColorMap } from './calculations'
 import { USEconSelector } from '@/types/Econ'
 import { createColorScale } from './calculations'
 import { USEcon } from '@prisma/client'
-import {
-  EconIndicatorDropdown,
-  YearDropdown,
-} from './components/states/Dropdowns'
 import HoveredStateInfo from './components/states/Hover'
 import ClickedStateInfo from './components/states/ClickedStateInfo'
+import { Menu } from './components/menu/Menu'
 interface StateType {
   year: number
   econ_indicator: USEconSelector
@@ -73,6 +70,7 @@ const DashboardScreen = () => {
 export interface EconIndicatorLookup {
   name: string
   key: USEconSelector
+  type: 'dollar' | 'ratio' | 'count'
 }
 
 const createLayers = (
@@ -202,7 +200,9 @@ const Dashboard = ({ geoData }: { geoData: FeatureCollectionType }) => {
       if (info.object && econData) {
         const state = info.object.properties.NAME
         const econDataItem = econData.find((item) => item.name === state)
-        if (econDataItem) {
+        if (econDataItem === clickedStateInfo) {
+          setClickedStateInfo(null)
+        } else if (econDataItem) {
           setClickedStateInfo(econDataItem)
         }
       } else {
@@ -229,26 +229,27 @@ const Dashboard = ({ geoData }: { geoData: FeatureCollectionType }) => {
       getFillColor: stateColorMap,
     }
   }, [stateColorMap])
+
+  const currentLookup = econIndicators.find(
+    (ele) => ele.key === econContext.econ_indicator
+  ) ?? { key: 'real_gdp', name: 'Alabama', type: 'count' }
   return (
     <div className="h-screen w-screen">
-      <div className="relative left-4 top-4 w-1/5">
-        <div className="grid grid-cols-2">
-          <EconIndicatorDropdown
-            econIndicators={econIndicators}
-            handleChange={handleChange}
-          />
-          <YearDropdown />
-        </div>
-      </div>
-
+      <Menu
+        currentLookup={currentLookup}
+        econIndicators={econIndicators}
+        handleChange={handleChange}
+      />
       <HoveredStateInfo
         hoveredStateInfo={hoveredStateInfo}
         mousePosition={mousePosition}
+        currentLookup={currentLookup}
       />
 
       <ClickedStateInfo
         clickedStateInfo={clickedStateInfo}
         handleCloseClick={handleCloseClick}
+        currentLookup={currentLookup}
       />
       {econData && (
         <MapComponent
@@ -264,35 +265,56 @@ const Dashboard = ({ geoData }: { geoData: FeatureCollectionType }) => {
 }
 
 const econIndicators: EconIndicatorLookup[] = [
-  { name: 'Real GDP', key: 'real_gdp' },
-  { name: 'Real Personal Income', key: 'real_personal' },
-  { name: 'Real PCE', key: 'real_pce' },
-  { name: 'Current Dollar GDP', key: 'current_gdp' },
-  { name: 'Current Dollar Personal Income', key: 'personal_income' },
-  { name: 'Current Dollar Disposable Income', key: 'disposable_income' },
+  { name: 'Real GDP', key: 'real_gdp', type: 'dollar' },
+  { name: 'Real Personal Income', key: 'real_personal', type: 'dollar' },
+  {
+    name: 'Real Personal Consumption Expenditures',
+    key: 'real_pce',
+    type: 'dollar',
+  },
+  { name: 'Current Dollar GDP', key: 'current_gdp', type: 'dollar' },
+  {
+    name: 'Current Dollar Personal Income',
+    key: 'personal_income',
+    type: 'dollar',
+  },
+  {
+    name: 'Current Dollar Disposable Income',
+    key: 'disposable_income',
+    type: 'dollar',
+  },
   {
     name: 'Current Dollar Personal Consumption',
     key: 'personal_consumption',
+    type: 'dollar',
   },
   {
     name: 'Real Per Capita Personal Income',
     key: 'real_per_capita_personal_income',
+    type: 'dollar',
   },
-  { name: 'Real Per Capita PCE', key: 'real_per_capita_pce' },
+  {
+    name: 'Real Per Capita Personal Consumption Expenditures',
+    key: 'real_per_capita_pce',
+    type: 'dollar',
+  },
   {
     name: 'Current Dollar Per Capita Personal Income',
     key: 'current_per_capita_personal_income',
+    type: 'dollar',
   },
   {
     name: 'Current Dollar Per Capita Disposable Income',
     key: 'current_per_capita_disposable_income',
+    type: 'dollar',
   },
-  { name: 'RPP', key: 'rpp' },
+  { name: 'RPP', key: 'rpp', type: 'ratio' },
   {
     name: 'Implicit Regional Price Deflator',
     key: 'implicit_regional_price_deflator',
+    type: 'dollar',
   },
-  { name: 'Employment', key: 'employment' },
+  { name: 'Employment', key: 'employment', type: 'count' },
 ]
 
 /* What to load if geographic data for the US is not available for some reason */

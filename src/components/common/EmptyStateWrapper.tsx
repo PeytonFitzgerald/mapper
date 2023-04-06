@@ -29,7 +29,6 @@ export const EmptyStateWrapper = ({
       ) : (
         NonEmptyComponent
       )}
-      np
     </div>
   )
 }

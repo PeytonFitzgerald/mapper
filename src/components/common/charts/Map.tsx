@@ -6,22 +6,22 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { useTheme } from 'next-themes'
 
 const INITIAL_VIEW_STATE = {
-  latitude: 20,
-  longitude: 37.61,
-  zoom: 3,
+  latitude: 39.82,
+  longitude: -98,
+  zoom: 4,
   bearing: 0,
   //pitch: 70
 }
 
 interface MapProps {
   layers: GeoJsonLayer[]
+  updateTriggers: any
   key: string
   darkStyle: 'POSTIRON' | 'DARK_MATTER' | 'VOYAGER'
   lightStyle: 'POSTIRON' | 'DARK_MATTER' | 'VOYAGER'
-  onMapLoad: (map: maplibregl.Map) => void
 }
 
-export const Map = ({ layers, darkStyle, lightStyle, onMapLoad }: MapProps) => {
+export const Map = ({ layers, darkStyle, lightStyle }: MapProps) => {
   const { theme } = useTheme()
   return (
     <>

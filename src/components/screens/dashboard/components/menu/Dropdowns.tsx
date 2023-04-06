@@ -13,11 +13,13 @@ import { EconContext } from '../../Dashboard'
 interface EconIndicatorDropdownProps {
   econIndicators: EconIndicatorLookup[]
   handleChange: (indicatorLookup: EconIndicatorLookup) => void
+  currentLookup: EconIndicatorLookup
 }
 
 export const EconIndicatorDropdown: React.FC<EconIndicatorDropdownProps> = ({
   econIndicators,
   handleChange,
+  currentLookup,
 }) => {
   const econContext = useContext(EconContext)
   if (!econContext) {
@@ -27,7 +29,7 @@ export const EconIndicatorDropdown: React.FC<EconIndicatorDropdownProps> = ({
     <div className="relative left-4 top-4">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="subtle">{econContext?.econ_indicator}</Button>
+          <Button variant="subtle">{currentLookup.name}</Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-56">
           <DropdownMenuLabel>Economic Variables Available</DropdownMenuLabel>
