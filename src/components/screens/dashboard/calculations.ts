@@ -63,12 +63,15 @@ export const createColorMap = (features: FeatureType[]) => {
  TODO: This type checking feels...bad. Should revisit, still kind of uncomfortable with generics.
 */
 export const createColorScale = (data: USEcon[], key: USEconSelector) => {
-  const minVal = Math.min(...data.map((d) => d[key] ?? 0))
-  const maxVal = Math.max(...data.map((d) => d[key] ?? 0))
-  console.log('min', minVal)
-  console.log('max', maxVal)
+  const values = data.map((d) => d[key] ?? 0).filter((v) => v !== null)
+  const minVal = Math.min(...values)
+  const maxVal = Math.max(...values)
 
-  return (value: number): [number, number, number, number] => {
+  return (value: number | null): [number, number, number, number] => {
+    if (value === null) {
+      return [128, 128, 128, 255] // Grey color for null values
+    }
+
     const t = (value - minVal) / (maxVal - minVal)
     const r = lerp(255, 0, t)
     const g = lerp(0, 255, t)

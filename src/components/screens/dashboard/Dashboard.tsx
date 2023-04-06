@@ -5,20 +5,23 @@ import React, {
   createContext,
   useReducer,
   useEffect,
+  useRef,
+  useCallback,
 } from 'react'
 import { GeoJsonLayer } from 'deck.gl/typed'
 import { Map as MapComponent } from '@/components/common/charts/Map'
-import * as data from '@/server/temp_data/data.json'
 import { api } from '@/utils/api'
 import { EmptyStateWrapper } from '@/components/common/EmptyStateWrapper'
-import { MainHeading } from '@/components/common/MainHeading'
 import { FeatureCollectionType } from '@/types/GeoJson'
-import { EconData } from './calculations'
 import { createColorMap } from './calculations'
-import { useToast } from '@/hooks/use-toast'
-import { Feature } from 'maplibre-gl'
 import { USEconSelector } from '@/types/Econ'
 import { createColorScale } from './calculations'
+import { geoCentroid } from 'd3-geo'
+import { USEcon } from '@prisma/client'
+import DropdownMenuComponent from './components/states/Dropdown'
+import HoveredStateInfo from './components/states/Hover'
+import ClickedStateInfo from './components/states/ClickedStateInfo'
+import { useStateColorMap } from './hooks/useStateColorMap'
 interface StateType {
   year: number
   econ_indicator: USEconSelector
@@ -27,7 +30,7 @@ type ActionType =
   | { type: 'SET_YEAR'; year: number }
   | { type: 'SET_INDICATOR'; econ_indicator: USEconSelector }
 const initialState: StateType = {
-  year: 2022,
+  year: 2020,
   econ_indicator: 'real_gdp',
 }
 const reducer = (state: StateType, action: ActionType) => {
@@ -66,26 +69,87 @@ const DashboardScreen = () => {
   )
 }
 
+export interface EconIndicatorLookup {
+  name: string
+  key: USEconSelector
+}
+
+const createLayers = (
+  geoData: FeatureCollectionType,
+  stateColorMap: Map<string, number[]>,
+  hoverLayer: GeoJsonLayer,
+  econData: USEcon[] | undefined,
+  onFeatureClick: (info: any, event: any) => void,
+  onFeatureHover: (info: any) => void
+) => {
+  return [
+    new GeoJsonLayer({
+      id: 'geojson-layer',
+      data: geoData,
+      pickable: true,
+      stroked: true,
+      filled: true,
+      extruded: true,
+      lineWidthScale: 20,
+      lineWidthMinPixels: 2,
+      getFillColor: (feature: any) => {
+        const state = feature.properties.NAME
+        const color = stateColorMap.get(state)
+        if (color) {
+          return color as [number, number, number, number]
+        }
+        return [0, 0, 0, 0]
+      },
+      getLineColor: [0, 0, 0, 255],
+      getRadius: 100,
+      getLineWidth: 5,
+      getElevation: 30,
+      onClick: onFeatureClick,
+      onHover: onFeatureHover,
+    }),
+    hoverLayer,
+  ]
+}
 // Main dashboard hub
 const Dashboard = ({ geoData }: { geoData: FeatureCollectionType }) => {
+  const econContext = useContext(EconContext)
+
+  const econContextDispatch = useContext(EconDispatchContext)
+  if (!econContext || !econContextDispatch) {
+    return null
+  }
   const data = geoData
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
+  const [hoveredStateInfo, setHoveredStateInfo] = useState<null | USEcon>(null)
   const [hoveredFeature, setHoveredFeature] = useState(null)
-  const [optionsVisible, toggleOptionsVisible] = useState(false)
   const [stateColorMap, setStateColorMap] = useState(
     createColorMap(data.features)
   )
-  const econContext = useContext(EconContext)
-  const econContextDispatch = useContext(EconDispatchContext)
-  const { data: econData, isLoading: econDataIsLoading } =
+  const [clickedStateInfo, setClickedStateInfo] = useState<null | USEcon>(null)
+  const [clickedStateCentroid, setClickedStateCentroid] = useState<
+    [number, number] | null
+  >(null)
+
+  const [mapInstance, setMapInstance] = useState<maplibregl.Map | null>(null)
+
+  const clickedStateDivRef = useRef<HTMLDivElement | null>(null)
+
+  const handleChange = (indicatorLookup: EconIndicatorLookup) => {
+    econContextDispatch({
+      type: 'SET_INDICATOR',
+      econ_indicator: indicatorLookup.key,
+    })
+  }
+
+  const { data: econData, isLoading } =
     api.stateRouter.getAllEconDataByYear.useQuery({
-      year: econContext?.year ?? 2021,
+      year: econContext.year ?? 2021,
     })
 
   useEffect(() => {
-    if (econData && econContext) {
+    if (econData) {
       const colorScale = createColorScale(econData, econContext.econ_indicator)
       const updatedColorMap = new Map(stateColorMap)
-      console.log(colorScale)
       geoData.features.forEach((feature) => {
         const state = feature.properties.NAME
         const econDataItem = econData.find((item) => item.name === state)
@@ -95,9 +159,8 @@ const Dashboard = ({ geoData }: { geoData: FeatureCollectionType }) => {
         }
       })
       setStateColorMap(updatedColorMap)
-      // stuff here...
     }
-  }, [econData, econContext, econDataIsLoading])
+  }, [econData, econContext.econ_indicator])
 
   const hoverLayer = new GeoJsonLayer({
     id: 'hover-layer',
@@ -117,61 +180,123 @@ const Dashboard = ({ geoData }: { geoData: FeatureCollectionType }) => {
     return Math.random().toString(36).substring(2)
   }, [stateColorMap])
 
+  const handleCloseClick = () => {
+    setClickedStateInfo(null)
+  }
+
   const layers = useMemo(() => {
-    return [
-      new GeoJsonLayer({
-        id: 'geojson-layer',
-        data,
-        pickable: true,
-        stroked: true,
-        filled: true,
-        extruded: true,
-        lineWidthScale: 20,
-        lineWidthMinPixels: 2,
-        getFillColor: (feature: any) => {
-          const state = feature.properties.NAME
-          return stateColorMap.get(state)
-        },
-        getLineColor: [0, 0, 0, 255],
-        getRadius: 100,
-        getLineWidth: 5,
-        getElevation: 30,
-        onClick: (info, event) => {
-          console.log('Feature clicked:', info.object)
-        },
-        onHover: (info) => {
-          setHoveredFeature(info.object)
-        },
-      }),
+    return createLayers(
+      geoData,
+      stateColorMap,
       hoverLayer,
-    ]
+      econData,
+      (info) => {
+        if (info.object && econData) {
+          const state = info.object.properties.NAME
+          const econDataItem = econData.find((item) => item.name === state)
+          if (econDataItem) {
+            setClickedStateInfo(econDataItem)
+
+            const centroid = geoCentroid(info.object)
+            setClickedStateCentroid(centroid)
+            if (
+              mapInstance &&
+              clickedStateCentroid &&
+              clickedStateDivRef.current
+            ) {
+              const [lng, lat] = clickedStateCentroid
+              const divCoords = mapInstance.project([lng, lat])
+
+              clickedStateDivRef.current.style.left = `${divCoords.x}px`
+              clickedStateDivRef.current.style.top = `${divCoords.y}px`
+            }
+          }
+        } else {
+          setClickedStateInfo(null)
+          setClickedStateCentroid(null)
+        }
+      },
+      (info) => {
+        setHoveredFeature(info.object)
+        if (info.object && econData) {
+          setMousePosition({ x: info.x, y: info.y })
+          const state = info.object.properties.NAME
+          const econDataItem = econData.find((item) => item.name === state)
+          if (econDataItem) {
+            setHoveredStateInfo({ ...econDataItem })
+          }
+        } else {
+          setHoveredStateInfo(null)
+        }
+      }
+    )
   }, [stateColorMap, hoverLayer, econData])
 
+  const DropdownMenu = () => {
+    return (
+      <div className="relative left-4 top-4">
+        <DropdownMenuComponent
+          econIndicators={econIndicators}
+          handleChange={handleChange}
+        />
+      </div>
+    )
+  }
   return (
     <div className="h-screen w-screen">
-      <button
-        onClick={() => {
-          toggleOptionsVisible(!optionsVisible)
-        }}
-        className="absolute left-4 top-4 z-10"
-      >
-        Toggle Layer
-      </button>
-      {optionsVisible ? (
-        <div className="absolute left-16 top-4 z-10 border border-black bg-white p-4">
-          <h3>Layer options:</h3>
-          {/* <button onClick={toggleLayerVisibility}>Toggle Fill Colors Layer</button> */}
-        </div>
-      ) : null}
+      <DropdownMenu />
+
+      <HoveredStateInfo
+        hoveredStateInfo={hoveredStateInfo}
+        mousePosition={mousePosition}
+      />
+
+      <ClickedStateInfo
+        clickedStateInfo={clickedStateInfo}
+        handleCloseClick={handleCloseClick}
+      />
       <MapComponent
         key={mapKey}
         layers={layers}
         darkStyle="DARK_MATTER"
         lightStyle="POSTIRON"
+        onMapLoad={(map: maplibregl.Map) => setMapInstance(map)}
       />
     </div>
   )
 }
+
+const econIndicators: EconIndicatorLookup[] = [
+  { name: 'Real GDP', key: 'real_gdp' },
+  { name: 'Real Personal Income', key: 'real_personal' },
+  { name: 'Real PCE', key: 'real_pce' },
+  { name: 'Current Dollar GDP', key: 'current_gdp' },
+  { name: 'Current Dollar Personal Income', key: 'personal_income' },
+  { name: 'Current Dollar Disposable Income', key: 'disposable_income' },
+  {
+    name: 'Current Dollar Personal Consumption',
+    key: 'personal_consumption',
+  },
+  {
+    name: 'Real Per Capita Personal Income',
+    key: 'real_per_capita_personal_income',
+  },
+  { name: 'Real Per Capita PCE', key: 'real_per_capita_pce' },
+  {
+    name: 'Current Dollar Per Capita Personal Income',
+    key: 'current_per_capita_personal_income',
+  },
+  {
+    name: 'Current Dollar Per Capita Disposable Income',
+    key: 'current_per_capita_disposable_income',
+  },
+  { name: 'RPP', key: 'rpp' },
+  {
+    name: 'Implicit Regional Price Deflator',
+    key: 'implicit_regional_price_deflator',
+  },
+  { name: 'Employment', key: 'employment' },
+]
 
 /* What to load if geographic data for the US is not available for some reason */
 const EmptyStateDashboard = () => {

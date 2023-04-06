@@ -18,9 +18,10 @@ interface MapProps {
   key: string
   darkStyle: 'POSTIRON' | 'DARK_MATTER' | 'VOYAGER'
   lightStyle: 'POSTIRON' | 'DARK_MATTER' | 'VOYAGER'
+  onMapLoad: (map: maplibregl.Map) => void
 }
 
-export const Map = ({ layers, darkStyle, lightStyle }: MapProps) => {
+export const Map = ({ layers, darkStyle, lightStyle, onMapLoad }: MapProps) => {
   const { theme } = useTheme()
   return (
     <>
