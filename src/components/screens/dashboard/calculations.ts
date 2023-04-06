@@ -69,7 +69,7 @@ export const createColorScale = (data: USEcon[], key: USEconSelector) => {
 
   return (value: number | null): [number, number, number, number] => {
     if (value === null) {
-      return [128, 128, 128, 255] // Grey color for null values
+      return [128, 128, 128, 100] // Grey color for null values
     }
 
     const t = (value - minVal) / (maxVal - minVal)
@@ -77,7 +77,7 @@ export const createColorScale = (data: USEcon[], key: USEconSelector) => {
     const g = lerp(0, 255, t)
     const b = 0
 
-    return [r, g, b, 255]
+    return [r, g, b, 100]
   }
 }
 

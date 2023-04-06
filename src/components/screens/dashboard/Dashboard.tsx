@@ -16,12 +16,13 @@ import { FeatureCollectionType } from '@/types/GeoJson'
 import { createColorMap } from './calculations'
 import { USEconSelector } from '@/types/Econ'
 import { createColorScale } from './calculations'
-import { geoCentroid } from 'd3-geo'
 import { USEcon } from '@prisma/client'
-import DropdownMenuComponent from './components/states/Dropdown'
+import {
+  EconIndicatorDropdown,
+  YearDropdown,
+} from './components/states/Dropdowns'
 import HoveredStateInfo from './components/states/Hover'
 import ClickedStateInfo from './components/states/ClickedStateInfo'
-import { useStateColorMap } from './hooks/useStateColorMap'
 interface StateType {
   year: number
   econ_indicator: USEconSelector
@@ -76,7 +77,7 @@ export interface EconIndicatorLookup {
 
 const createLayers = (
   geoData: FeatureCollectionType,
-  stateColorMap: Map<string, number[]>,
+  stateColorMap: Map<string, [number, number, number, number]>,
   hoverLayer: GeoJsonLayer,
   econData: USEcon[] | undefined,
   onFeatureClick: (info: any, event: any) => void,
@@ -106,19 +107,27 @@ const createLayers = (
       getElevation: 30,
       onClick: onFeatureClick,
       onHover: onFeatureHover,
+      updateTriggers: {
+        getFillColor: stateColorMap,
+      },
     }),
     hoverLayer,
   ]
 }
 // Main dashboard hub
 const Dashboard = ({ geoData }: { geoData: FeatureCollectionType }) => {
+  /*
+   * Context Setup
+   */
   const econContext = useContext(EconContext)
-
   const econContextDispatch = useContext(EconDispatchContext)
   if (!econContext || !econContextDispatch) {
     return null
   }
   const data = geoData
+  /*
+   * State setup
+   */
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
   const [hoveredStateInfo, setHoveredStateInfo] = useState<null | USEcon>(null)
   const [hoveredFeature, setHoveredFeature] = useState(null)
@@ -126,24 +135,26 @@ const Dashboard = ({ geoData }: { geoData: FeatureCollectionType }) => {
     createColorMap(data.features)
   )
   const [clickedStateInfo, setClickedStateInfo] = useState<null | USEcon>(null)
-  const [clickedStateCentroid, setClickedStateCentroid] = useState<
-    [number, number] | null
-  >(null)
 
-  const [mapInstance, setMapInstance] = useState<maplibregl.Map | null>(null)
-
-  const clickedStateDivRef = useRef<HTMLDivElement | null>(null)
-
+  /*
+   * Handlers
+   */
   const handleChange = (indicatorLookup: EconIndicatorLookup) => {
     econContextDispatch({
       type: 'SET_INDICATOR',
       econ_indicator: indicatorLookup.key,
     })
   }
+  const handleCloseClick = () => {
+    setClickedStateInfo(null)
+  }
 
+  /*
+   * Basic Data Fetch for all US State Economic Data
+   */
   const { data: econData, isLoading } =
     api.stateRouter.getAllEconDataByYear.useQuery({
-      year: econContext.year ?? 2021,
+      year: econContext.year,
     })
 
   useEffect(() => {
@@ -162,6 +173,9 @@ const Dashboard = ({ geoData }: { geoData: FeatureCollectionType }) => {
     }
   }, [econData, econContext.econ_indicator])
 
+  /*
+   * Layer Setup
+   */
   const hoverLayer = new GeoJsonLayer({
     id: 'hover-layer',
     data: hoveredFeature ? [hoveredFeature] : [],
@@ -179,72 +193,53 @@ const Dashboard = ({ geoData }: { geoData: FeatureCollectionType }) => {
   const mapKey = useMemo(() => {
     return Math.random().toString(36).substring(2)
   }, [stateColorMap])
-
-  const handleCloseClick = () => {
-    setClickedStateInfo(null)
-  }
-
-  const layers = useMemo(() => {
-    return createLayers(
-      geoData,
-      stateColorMap,
-      hoverLayer,
-      econData,
-      (info) => {
-        if (info.object && econData) {
-          const state = info.object.properties.NAME
-          const econDataItem = econData.find((item) => item.name === state)
-          if (econDataItem) {
-            setClickedStateInfo(econDataItem)
-
-            const centroid = geoCentroid(info.object)
-            setClickedStateCentroid(centroid)
-            if (
-              mapInstance &&
-              clickedStateCentroid &&
-              clickedStateDivRef.current
-            ) {
-              const [lng, lat] = clickedStateCentroid
-              const divCoords = mapInstance.project([lng, lat])
-
-              clickedStateDivRef.current.style.left = `${divCoords.x}px`
-              clickedStateDivRef.current.style.top = `${divCoords.y}px`
-            }
-          }
-        } else {
-          setClickedStateInfo(null)
-          setClickedStateCentroid(null)
+  const layers = createLayers(
+    geoData,
+    stateColorMap,
+    hoverLayer,
+    econData,
+    (info) => {
+      if (info.object && econData) {
+        const state = info.object.properties.NAME
+        const econDataItem = econData.find((item) => item.name === state)
+        if (econDataItem) {
+          setClickedStateInfo(econDataItem)
         }
-      },
-      (info) => {
-        setHoveredFeature(info.object)
-        if (info.object && econData) {
-          setMousePosition({ x: info.x, y: info.y })
-          const state = info.object.properties.NAME
-          const econDataItem = econData.find((item) => item.name === state)
-          if (econDataItem) {
-            setHoveredStateInfo({ ...econDataItem })
-          }
-        } else {
-          setHoveredStateInfo(null)
-        }
+      } else {
+        setClickedStateInfo(null)
       }
-    )
-  }, [stateColorMap, hoverLayer, econData])
+    },
+    (info) => {
+      setHoveredFeature(info.object)
+      if (info.object && econData) {
+        setMousePosition({ x: info.x, y: info.y })
+        const state = info.object.properties.NAME
+        const econDataItem = econData.find((item) => item.name === state)
+        if (econDataItem) {
+          setHoveredStateInfo({ ...econDataItem })
+        }
+      } else {
+        setHoveredStateInfo(null)
+      }
+    }
+  )
 
-  const DropdownMenu = () => {
-    return (
-      <div className="relative left-4 top-4">
-        <DropdownMenuComponent
-          econIndicators={econIndicators}
-          handleChange={handleChange}
-        />
-      </div>
-    )
-  }
+  const updateTriggers = useMemo(() => {
+    return {
+      getFillColor: stateColorMap,
+    }
+  }, [stateColorMap])
   return (
     <div className="h-screen w-screen">
-      <DropdownMenu />
+      <div className="relative left-4 top-4 w-1/5">
+        <div className="grid grid-cols-2">
+          <EconIndicatorDropdown
+            econIndicators={econIndicators}
+            handleChange={handleChange}
+          />
+          <YearDropdown />
+        </div>
+      </div>
 
       <HoveredStateInfo
         hoveredStateInfo={hoveredStateInfo}
@@ -255,13 +250,15 @@ const Dashboard = ({ geoData }: { geoData: FeatureCollectionType }) => {
         clickedStateInfo={clickedStateInfo}
         handleCloseClick={handleCloseClick}
       />
-      <MapComponent
-        key={mapKey}
-        layers={layers}
-        darkStyle="DARK_MATTER"
-        lightStyle="POSTIRON"
-        onMapLoad={(map: maplibregl.Map) => setMapInstance(map)}
-      />
+      {econData && (
+        <MapComponent
+          key={mapKey}
+          layers={layers}
+          darkStyle="DARK_MATTER"
+          lightStyle="POSTIRON"
+          updateTriggers={updateTriggers}
+        />
+      )}
     </div>
   )
 }
