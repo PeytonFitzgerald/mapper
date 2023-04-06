@@ -38,7 +38,7 @@ const Links = ({ active }: { active: boolean }) => {
               } -ml-52 mr-52 block pb-5 pl-3 pt-5 duration-300`}
               style={{ transitionDelay: (idx + 1) * 100 + 'ms' }}
             >
-              <div className="bg-mitre-blue absolute bottom-2 left-0 right-0 top-2 -z-10 -ml-60 mr-60 duration-200 group-hover:translate-x-48"></div>
+              <div className="absolute bottom-2 left-0 right-0 top-2 -z-10 -ml-60 mr-60 bg-slate-800 duration-200 group-hover:translate-x-48"></div>
               {/* <a className="text-center font-bold">
                 {link.title}{' '}
                 <div className="float-right -mb-1 ml-3 inline-block">

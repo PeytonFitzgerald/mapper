@@ -85,7 +85,7 @@ export const SideNav = () => {
 
 const LoggedOutSection = () => {
   return (
-    <div className="bg-mitre-blue relative text-center">
+    <div className="relative bg-slate-800 text-center">
       <button className="h-20 leading-5" onClick={() => signIn()}>
         {'SIGN IN'}
       </button>
